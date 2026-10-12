@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Room Type Predictor · NYC Airbnb</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+:root{
+  --bg:#07090f; --panel:rgba(18,22,34,.72); --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.16);
+  --text:#eef1f8; --mute:#8b93a7; --orange:#ff6319; --blue:#4f8cff; --green:#6cbe45; --yellow:#fccc0a;
+  --display:'Bricolage Grotesque',system-ui,sans-serif; --body:'Instrument Sans',system-ui,sans-serif;
+}
+*{box-sizing:border-box;margin:0}
+html,body{background:var(--bg);color:var(--text);font-family:var(--body);min-height:100%}
+body{overflow-x:hidden}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+
+/* background */
+.bg{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none}
+.grid{position:absolute;inset:-50%;background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);background-size:56px 56px;transform:perspective(900px) rotateX(58deg) translateY(-8%);mask-image:radial-gradient(ellipse at 50% 40%,#000 10%,transparent 65%);animation:drift 14s linear infinite;opacity:.7}
+@keyframes drift{to{background-position:0 56px,56px 0}}
+.orb{position:absolute;border-radius:50%;filter:blur(90px);opacity:.38;animation:float 18s ease-in-out infinite}
+.o1{width:480px;height:480px;background:var(--orange);top:-140px;left:-120px}
+.o2{width:520px;height:520px;background:var(--blue);bottom:-200px;right:-140px;animation-delay:-6s}
+.o3{width:300px;height:300px;background:var(--green);top:45%;left:48%;opacity:.16;animation-delay:-11s}
+@keyframes float{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(60px,-50px) scale(1.12)}}
+
+/* layout */
+.wrap{position:relative;z-index:1;max-width:1180px;margin:0 auto;padding:36px 22px 70px}
+header{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;flex-wrap:wrap;margin-bottom:34px}
+.title{display:flex;gap:16px;align-items:center}
+.bullet{width:54px;height:54px;border-radius:50%;background:var(--orange);color:#111;display:grid;place-items:center;font:800 28px var(--display);box-shadow:0 0 40px rgba(255,99,25,.5);animation:pulse 3s ease-in-out infinite}
+@keyframes pulse{50%{box-shadow:0 0 70px rgba(255,99,25,.85)}}
+h1{font:800 clamp(30px,5vw,50px)/1 var(--display);letter-spacing:-.03em}
+.sub{color:var(--mute);margin-top:8px;max-width:46ch;line-height:1.5}
+.api{display:flex;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:7px 8px 7px 16px;backdrop-filter:blur(14px)}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--mute)}
+.dot.ok{background:var(--green);box-shadow:0 0 12px var(--green)}
+.dot.bad{background:#ff4d5e;box-shadow:0 0 12px #ff4d5e}
+.api input{background:transparent;border:0;width:200px;font-size:13px;color:var(--mute)}
+.api input:focus{outline:none;color:var(--text)}
+.api span{font-size:12.5px;color:var(--mute);white-space:nowrap}
+
+main{display:grid;grid-template-columns:1.25fr 1fr;gap:24px;align-items:start}
+@media(max-width:900px){main{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:22px;padding:26px;backdrop-filter:blur(18px)}
+.card+.card{margin-top:20px}
+h2{font:700 19px var(--display);margin-bottom:4px;display:flex;align-items:center;gap:10px}
+h2 i{width:10px;height:10px;border-radius:50%;display:inline-block}
+.hint{color:var(--mute);font-size:13.5px;margin-bottom:18px}
+
+.boroughs{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+.chip{border:1px solid var(--line2);background:transparent;border-radius:999px;padding:9px 16px;cursor:pointer;font-weight:500;font-size:14px;transition:.2s}
+.chip:hover{border-color:var(--text);transform:translateY(-2px)}
+.chip.on{background:var(--orange);border-color:var(--orange);color:#14090a;box-shadow:0 6px 24px rgba(255,99,25,.4)}
+.nbh{display:flex;flex-wrap:wrap;gap:7px;margin:10px 0 4px}
+.nbh button{font-size:12.5px;padding:6px 12px;border-radius:8px;border:1px solid var(--line);background:rgba(255,255,255,.03);cursor:pointer;transition:.2s;color:var(--mute)}
+.nbh button:hover{color:var(--text);border-color:var(--line2)}
+.nbh button.on{color:var(--text);border-color:var(--blue);background:rgba(79,140,255,.15)}
+
+.row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:520px){.row{grid-template-columns:1fr}}
+label{display:block;font-size:13px;color:var(--mute);margin-bottom:6px}
+.field{margin-bottom:14px}
+.in{width:100%;background:rgba(255,255,255,.04);border:1px solid var(--line);border-radius:12px;padding:12px 14px;transition:.2s}
+.in:hover{border-color:var(--line2)}
+.in:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 4px rgba(79,140,255,.18);background:rgba(255,255,255,.06)}
+.in.err{border-color:#ff4d5e}
+.pre{position:relative}
+.pre b{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:var(--mute);font-weight:500}
+.pre .in{padding-left:30px}
+.slider{width:100%;-webkit-appearance:none;appearance:none;height:6px;border-radius:6px;background:linear-gradient(90deg,var(--orange) var(--p),rgba(255,255,255,.1) var(--p));outline-offset:6px;cursor:pointer}
+.slider::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;background:#fff;border:4px solid var(--orange);transition:.15s}
+.slider::-webkit-slider-thumb:hover{transform:scale(1.2)}
+.slider::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:#fff;border:4px solid var(--orange)}
+.sv{display:flex;justify-content:space-between;font-size:13px;color:var(--mute);margin-bottom:10px}
+.sv b{color:var(--text);font-weight:600}
+
+.go{width:100%;margin-top:6px;border:0;border-radius:16px;padding:17px;font:700 17px var(--display);cursor:pointer;color:#14090a;background:linear-gradient(100deg,var(--orange),var(--yellow),var(--orange));background-size:200% 100%;transition:.3s;position:relative;overflow:hidden}
+.go:hover:not(:disabled){background-position:100% 0;transform:translateY(-2px);box-shadow:0 14px 40px rgba(255,99,25,.45)}
+.go:disabled{opacity:.7;cursor:wait}
+.spin{display:inline-block;width:16px;height:16px;border:3px solid rgba(0,0,0,.25);border-top-color:#111;border-radius:50%;animation:rot .7s linear infinite;vertical-align:-2px;margin-right:8px}
+@keyframes rot{to{transform:rotate(360deg)}}
+.ghost{background:none;border:1px dashed var(--line2);color:var(--mute);border-radius:10px;padding:7px 12px;cursor:pointer;font-size:13px;transition:.2s}
+.ghost:hover{color:var(--text);border-color:var(--text)}
+
+/* result */
+.side{position:sticky;top:20px}
+@media(max-width:900px){.side{position:static}}
+.empty{text-align:center;padding:34px 10px;color:var(--mute)}
+.radar{width:120px;height:120px;margin:0 auto 20px;border-radius:50%;border:1px solid var(--line2);position:relative;background:radial-gradient(circle,rgba(79,140,255,.15),transparent 70%)}
+.radar:before,.radar:after{content:"";position:absolute;inset:22px;border-radius:50%;border:1px solid var(--line)}
+.radar:after{inset:44px}
+.sweep{position:absolute;inset:0;border-radius:50%;background:conic-gradient(from 0deg,rgba(79,140,255,.55),transparent 28%);animation:rot 2.6s linear infinite}
+.thinking .sweep{animation-duration:.9s}
+.res{animation:pop .7s cubic-bezier(.2,1.3,.4,1)}
+@keyframes pop{from{opacity:0;transform:scale(.88) translateY(14px)}}
+.badge{display:flex;align-items:center;gap:16px;margin-bottom:6px}
+.line{flex:none;width:64px;height:64px;border-radius:50%;display:grid;place-items:center;font:800 30px var(--display);color:#fff;animation:spinin .8s cubic-bezier(.2,1.2,.4,1)}
+@keyframes spinin{from{transform:rotate(-200deg) scale(.2)}}
+.pred{font:800 clamp(26px,4vw,34px)/1.05 var(--display);letter-spacing:-.02em}
+.conf{color:var(--mute);font-size:14px;margin:4px 0 22px}
+.conf b{color:var(--text)}
+.bar{margin-bottom:14px}
+.bar .t{display:flex;justify-content:space-between;font-size:14px;margin-bottom:6px}
+.bar .t span:last-child{font-variant-numeric:tabular-nums;color:var(--mute)}
+.bar.top .t span:last-child{color:var(--text);font-weight:600}
+.track{height:10px;border-radius:10px;background:rgba(255,255,255,.07);overflow:hidden}
+.fill{height:100%;border-radius:10px;width:0;transition:width 1.1s cubic-bezier(.2,.8,.2,1)}
+.errbox{border:1px solid rgba(255,77,94,.5);background:rgba(255,77,94,.08);border-radius:14px;padding:14px 16px;font-size:14px;line-height:1.5;margin-bottom:16px}
+.errbox b{display:block;margin-bottom:4px}
+.errbox code{font-size:12.5px;color:#ffb3bb;word-break:break-word}
+.sum{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:20px;padding-top:18px;border-top:1px solid var(--line);font-size:13px;color:var(--mute)}
+.sum b{display:block;color:var(--text);font-weight:600;font-size:14px}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="bg"><div class="grid"></div><div class="orb o1"></div><div class="orb o2"></div><div class="orb o3"></div></div>
+<div id="root"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.24.7/babel.min.js"></script>
+<script type="text/babel">
+const { useState, useEffect, useRef } = React;
+
+/* ---- Config -------------------------------------------------------- */
+const DEFAULT_API = "http://127.0.0.1:8000";
+
+// The API returns probabilities without class names. sklearn orders them
+// alphabetically (model.classes_). Edit here if your classes differ.
+const CLASSES_3 = ["Entire home/apt", "Private room", "Shared room"];
+const CLASSES_4 = ["Entire home/apt", "Hotel room", "Private room", "Shared room"];
+const COLORS = { "Entire home/apt": "#ff6319", "Private room": "#4f8cff", "Shared room": "#6cbe45", "Hotel room": "#fccc0a" };
+const BULLET = { "Entire home/apt": "E", "Private room": "P", "Shared room": "S", "Hotel room": "H" };
+
+const AREAS = {
+  Manhattan: { lat: 40.7831, lng: -73.9712, n: {
+    "Harlem": [40.8116, -73.9465], "Upper West Side": [40.787, -73.9754], "Upper East Side": [40.7736, -73.9566],
+    "Midtown": [40.7549, -73.984], "Hell's Kitchen": [40.7638, -73.9918], "East Village": [40.7265, -73.9815],
+    "Chelsea": [40.7465, -74.0014], "Washington Heights": [40.8417, -73.9393] } },
+  Brooklyn: { lat: 40.6782, lng: -73.9442, n: {
+    "Williamsburg": [40.7081, -73.9571], "Bedford-Stuyvesant": [40.6872, -73.9418], "Bushwick": [40.6944, -73.9213],
+    "Crown Heights": [40.6694, -73.9422], "Greenpoint": [40.7304, -73.9515], "Park Slope": [40.671, -73.9814],
+    "Flatbush": [40.641, -73.963], "Sunset Park": [40.6453, -74.0124] } },
+  Queens: { lat: 40.7282, lng: -73.7949, n: {
+    "Astoria": [40.7644, -73.9235], "Long Island City": [40.7447, -73.9485], "Flushing": [40.7675, -73.8331],
+    "Ridgewood": [40.7043, -73.9018], "Jamaica": [40.7027, -73.789], "Sunnyside": [40.7433, -73.9196] } },
+  Bronx: { lat: 40.8448, lng: -73.8648, n: {
+    "Mott Haven": [40.8091, -73.9229], "Fordham": [40.861, -73.8907], "Kingsbridge": [40.8814, -73.9028],
+    "Concourse": [40.8247, -73.9236], "Riverdale": [40.9006, -73.9051] } },
+  "Staten Island": { lat: 40.5795, lng: -74.1502, n: {
+    "St. George": [40.6437, -74.0765], "Tompkinsville": [40.6366, -74.0914], "Great Kills": [40.5543, -74.1513],
+    "Stapleton": [40.627, -74.0775] } },
+};
+
+const START = {
+  neighbourhood_group: "Manhattan", neighbourhood: "Harlem", latitude: 40.8116, longitude: -73.9465,
+  price: 150, minimum_nights: 3, number_of_reviews: 25, reviews_per_month: 1.2,
+  calculated_host_listings_count: 1, availability_365: 180,
+};
+
+/* ---- Helpers ------------------------------------------------------- */
+function useCountUp(target, ms = 1000) {
+  const [v, setV] = useState(0);
+  useEffect(() => {
+    let raf, t0;
+    const step = (t) => {
+      t0 = t0 ?? t;
+      const k = Math.min((t - t0) / ms, 1);
+      setV(target * (1 - Math.pow(1 - k, 3)));
+      if (k < 1) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [target]);
+  return v;
+}
+
+function Bar({ name, p, top, color }) {
+  const [w, setW] = useState(0);
+  useEffect(() => { const t = setTimeout(() => setW(p * 100), 120); return () => clearTimeout(t); }, [p]);
+  return (
+    <div className={"bar" + (top ? " top" : "")}>
+      <div className="t"><span>{name}</span><span>{(p * 100).toFixed(1)}%</span></div>
+      <div className="track"><div className="fill" style={{ width: w + "%", background: color, boxShadow: top ? `0 0 16px ${color}` : "none" }} /></div>
+    </div>
+  );
+}
+
+function Num({ label, k, form, set, prefix, step = "any", min }) {
+  return (
+    <div className="field">
+      <label htmlFor={k}>{label}</label>
+      <div className={prefix ? "pre" : ""}>
+        {prefix && <b>{prefix}</b>}
+        <input id={k} className="in" type="number" step={step} min={min} value={form[k]}
+          onChange={(e) => set(k, e.target.value === "" ? "" : Number(e.target.value))} />
+      </div>
+    </div>
+  );
+}
+
+function Slide({ label, k, form, set, max, min = 0 }) {
+  const p = ((form[k] - min) / (max - min)) * 100;
+  return (
+    <div className="field">
+      <div className="sv"><label htmlFor={k} style={{ margin: 0 }}>{label}</label><b>{form[k]}</b></div>
+      <input id={k} className="slider" type="range" min={min} max={max} value={form[k]} style={{ "--p": p + "%" }}
+        onChange={(e) => set(k, Number(e.target.value))} />
+    </div>
+  );
+}
+
+function Result({ data, loading, error, form, api }) {
+  const probs = data?.probabilities;
+  const names = probs ? (probs.length === 4 ? CLASSES_4 : probs.length === 3 ? CLASSES_3 : probs.map((_, i) => "Class " + i)) : [];
+  const label = data?.predicted_room_type;
+  const top = probs ? Math.max(...probs) * 100 : 0;
+  const shown = useCountUp(top);
+  const color = COLORS[label] || "#ff6319";
+
+  if (error) return (
+    <div className="errbox"><b>Couldn't get a prediction</b>{error}<br /><code>{api}/predict</code></div>
+  );
+  if (!data) return (
+    <div className={"empty" + (loading ? " thinking" : "")}>
+      <div className="radar"><div className="sweep" /></div>
+      <h2 style={{ justifyContent: "center" }}>{loading ? "Reading the listing…" : "Waiting for a listing"}</h2>
+      <p className="hint" style={{ margin: 0 }}>Fill in the details and press Predict room type.</p>
+    </div>
+  );
+  return (
+    <div className="res" key={label + top}>
+      <div className="badge">
+        <div className="line" style={{ background: color, boxShadow: `0 0 36px ${color}88` }}>{BULLET[label] || label?.[0]}</div>
+        <div className="pred">{label}</div>
+      </div>
+      <p className="conf"><b>{shown.toFixed(1)}%</b> confident</p>
+      {probs && names.map((n, i) => <Bar key={n} name={n} p={probs[i]} top={n === label} color={COLORS[n] || "#8b93a7"} />)}
+      <div className="sum">
+        <div>Location<b>{form.neighbourhood}, {form.neighbourhood_group}</b></div>
+        <div>Price<b>${form.price} / night</b></div>
+        <div>Minimum stay<b>{form.minimum_nights} nights</b></div>
+        <div>Availability<b>{form.availability_365} days / year</b></div>
+      </div>
+    </div>
+  );
+}
+
+/* ---- App ----------------------------------------------------------- */
+function App() {
+  const [api, setApi] = useState(DEFAULT_API);
+  const [status, setStatus] = useState("idle");
+  const [form, setForm] = useState(START);
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+  const area = AREAS[form.neighbourhood_group];
+
+  useEffect(() => {
+    setStatus("idle");
+    const t = setTimeout(async () => {
+      try {
+        const r = await fetch(api.replace(/\/$/, "") + "/health");
+        const j = await r.json();
+        setStatus(j.model_loaded ? "ok" : "bad");
+      } catch { setStatus("bad"); }
+    }, 450);
+    return () => clearTimeout(t);
+  }, [api]);
+
+  const pickBorough = (b) => setForm((f) => ({ ...f, neighbourhood_group: b, neighbourhood: "", latitude: AREAS[b].lat, longitude: AREAS[b].lng }));
+  const pickNbh = (n) => setForm((f) => ({ ...f, neighbourhood: n, latitude: area.n[n][0], longitude: area.n[n][1] }));
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!form.neighbourhood.trim()) { setError("Choose or type a neighbourhood first."); setData(null); return; }
+    setLoading(true); setError(""); setData(null);
+    const started = Date.now();
+    try {
+      const r = await fetch(api.replace(/\/$/, "") + "/predict", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form),
+      });
+      const j = await r.json();
+      if (!r.ok) {
+        const d = j.detail;
+        throw new Error(typeof d === "string" ? d : Array.isArray(d) ? d.map((x) => `${x.loc.slice(-1)}: ${x.msg}`).join("; ") : "Request failed");
+      }
+      await new Promise((ok) => setTimeout(ok, Math.max(0, 900 - (Date.now() - started))));
+      setData(j);
+    } catch (err) {
+      setError(err instanceof TypeError ? "The API isn't reachable. Start it with uvicorn and check the address at the top right." : err.message);
+    } finally { setLoading(false); }
+  };
+
+  return (
+    <div className="wrap">
+      <header>
+        <div className="title">
+          <div className="bullet">A</div>
+          <div>
+            <h1>NYC room type predictor</h1>
+            <p className="sub">Describe an Airbnb listing and the model tells you whether it's an entire home, a private room, or a shared room.</p>
+          </div>
+        </div>
+        <div className="api">
+          <div className={"dot " + status} />
+          <input aria-label="API address" value={api} onChange={(e) => setApi(e.target.value)} spellCheck="false" />
+          <span>{status === "ok" ? "Model ready" : status === "bad" ? "Not reachable" : "Checking…"}</span>
+        </div>
+      </header>
+
+      <main>
+        <form onSubmit={submit}>
+          <div className="card">
+            <h2><i style={{ background: "var(--orange)" }} />Where is it?</h2>
+            <p className="hint">Pick a borough, then a neighbourhood. Coordinates fill in automatically.</p>
+            <div className="boroughs">
+              {Object.keys(AREAS).map((b) => (
+                <button type="button" key={b} className={"chip" + (form.neighbourhood_group === b ? " on" : "")} onClick={() => pickBorough(b)}>{b}</button>
+              ))}
+            </div>
+            <div className="nbh">
+              {Object.keys(area.n).map((n) => (
+                <button type="button" key={n} className={form.neighbourhood === n ? "on" : ""} onClick={() => pickNbh(n)}>{n}</button>
+              ))}
+            </div>
+            <div className="field" style={{ marginTop: 14 }}>
+              <label htmlFor="nb">Or type any neighbourhood name</label>
+              <input id="nb" className="in" value={form.neighbourhood} onChange={(e) => set("neighbourhood", e.target.value)} placeholder="e.g. Greenpoint" />
+            </div>
+            <div className="row">
+              <Num label="Latitude" k="latitude" form={form} set={set} step="0.0001" />
+              <Num label="Longitude" k="longitude" form={form} set={set} step="0.0001" />
+            </div>
+          </div>
+
+          <div className="card">
+            <h2><i style={{ background: "var(--blue)" }} />The listing</h2>
+            <p className="hint">Price and stay rules are strong hints about the room type.</p>
+            <div className="row">
+              <Num label="Price per night" k="price" form={form} set={set} prefix="$" min="1" />
+              <Num label="Host's total listings" k="calculated_host_listings_count" form={form} set={set} step="1" min="0" />
+            </div>
+            <Slide label="Minimum nights" k="minimum_nights" form={form} set={set} min={1} max={365} />
+            <Slide label="Days available per year" k="availability_365" form={form} set={set} max={365} />
+            <div className="row">
+              <Num label="Number of reviews" k="number_of_reviews" form={form} set={set} step="1" min="0" />
+              <Num label="Reviews per month" k="reviews_per_month" form={form} set={set} step="0.01" min="0" />
+            </div>
+          </div>
+
+          <button className="go" disabled={loading} style={{ marginTop: 20 }}>
+            {loading ? <><span className="spin" />Predicting…</> : "Predict room type"}
+          </button>
+        </form>
+
+        <aside className="side">
+          <div className="card">
+            <h2><i style={{ background: "var(--green)" }} />Prediction</h2>
+            <p className="hint">What the model thinks this listing is.</p>
+            <Result data={data} loading={loading} error={error} form={form} api={api} />
+          </div>
+          <div style={{ marginTop: 14, textAlign: "center" }}>
+            <button type="button" className="ghost" onClick={() => { setForm(START); setData(null); setError(""); }}>Reset to example</button>
+          </div>
+        </aside>
+      </main>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
