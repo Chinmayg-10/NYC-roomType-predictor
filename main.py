@@ -33,7 +33,7 @@ COLUMNS = [
 ]
 
 # Load the saved, fitted ML pipeline
-MODEL_PATH = Path(__file__).resolve().parent / "Model_pipeline.pkl"
+MODEL_PATH = Path(__file__).resolve().parent / "Model_pipeline_compressed.pkl"
 
 if not MODEL_PATH.exists():
     raise FileNotFoundError(f"Model file not found: {MODEL_PATH}")
